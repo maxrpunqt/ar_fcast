@@ -1,13 +1,14 @@
-*! Version 1.0 
+*! Version 1.1
 * Compute out-of-sample forecasts with auto-regressive dependent variable
 * for panel data
 * By Max R., maxrpunqt@gmail.com
 * 15 May 2021
 
+
 capture program drop ar_fcast
-program define ar_fcast 
+program define ar_fcast, eclass
 	version 14.1
-	syntax varlist(min=3 max=3) , Lag(integer)
+	syntax varlist(min=3 max=3) , Lag(integer) [rmse]
 	*syntax invest L1invest fcast_period, Lag(1)
 	
 	*Check basic requirements
@@ -31,6 +32,7 @@ program define ar_fcast
 	qui local lagvar `2'
 	qui local fcast_period = subinstr("`3'", ",","",.)
 	qui di "`fcast_period'"
+	capture drop _fcast_period
 	qui gen _fcast_period = `fcast_period'
 	qui label variable _fcast_period "Forecast period, adjusted for number of lags"
 	
@@ -38,14 +40,14 @@ program define ar_fcast
 		qui bys company: replace _fcast_period = _fcast_period[_n+`l'] - `l' if _fcast_period[_n+`l'] == 1
 	}
 	
-
+	capture drop _`depvar'_fc
 	qui bys `id': gen _`depvar'_fc = `depvar' if _fcast_period < 1
 	qui label variable _`depvar'_fc "Forecasted values, starting with actual observations in _fcast_period<1"
 	
 	*Run recursive prediction
 	di "Start recursive prediction."
 	qui clonevar `lagvar'_orig = `lagvar'
-
+	
 	qui replace `lagvar' = L`lag'._`depvar'_fc
 	
 	qui predict `depvar'_predict, xb
@@ -58,7 +60,7 @@ program define ar_fcast
 	qui local cnt 1
 	while `more' {
 		*run loop util all forecast periods are filled up with predictions
-		di "Iteration step: `cnt'"
+		*di "Iteration step: `cnt'"
 		
 		qui replace `lagvar' = L`lag'._`depvar'_fc
 		qui predict `depvar'_predict, xb
@@ -70,17 +72,36 @@ program define ar_fcast
 		qui drop `depvar'_predict
 		qui local cnt = `cnt' + 1
 	}
+	di "End recursive prediction."
 	*prepare final results
 	qui drop clone
 	qui replace `lagvar'  = `lagvar'_orig
 	qui drop `lagvar'_orig
 	*bro*
-
+	
+	capture drop `depvar'_fc
 	qui gen `depvar'_fc = _`depvar'_fc
 	*replace `depvar'_fc = . if `fcast_period' != _fcast_period
 	qui replace `depvar'_fc = . if `fcast_period'==.
 	
 	qui order _*, last 
+	
+	if "`rmse'"=="rmse" {
+		* do not subtract one
+		qui gen e = `depvar' - `depvar'_fc if !missing(`fcast_period')
+		qui gen e2 = e*e
+		
+		qui corr `depvar' `depvar'_fc if !missing(`fcast_period')
+		display "Forecast period's R^2 = " %05.3f =`r(rho)'^2
+		ereturn scalar r2=`r(rho)'^2
+		
+		qui summ e2 if !missing(`fcast_period'), meanonly
+		display "Forecast period's RMSE = " =sqrt(`r(mean)')
+		ereturn scalar rmse=sqrt(`r(mean)')
+		
+		qui drop e e2
+	}
+	
 end
 
 
