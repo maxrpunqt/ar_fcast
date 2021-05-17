@@ -1,16 +1,16 @@
-*! Version 1.1
+*! Version 1.2
 * Compute out-of-sample forecasts with auto-regressive dependent variable
 * for panel data
 * By Max R., maxrpunqt@gmail.com
-* 15 May 2021
+* 17 May 2021
 
 
 capture program drop ar_fcast
 program define ar_fcast, eclass
 	version 14.1
-	syntax varlist(min=3 max=3) , Lag(integer) [rmse]
+	syntax varlist(min=3 max=3) , Lag(integer) [rmse] [COrrection(string)]
 	*syntax invest L1invest fcast_period, Lag(1)
-	
+	di "`correction'"
 	*Check basic requirements
 	if (`lag'<=0 ) {
 			disp as red "lag should be set equal to one or greater"
@@ -36,8 +36,9 @@ program define ar_fcast, eclass
 	qui gen _fcast_period = `fcast_period'
 	qui label variable _fcast_period "Forecast period, adjusted for number of lags"
 	
+	*adjust for lags by including values prior to starting point of forecast
 	foreach l of numlist 1/`lag' {
-		qui bys company: replace _fcast_period = _fcast_period[_n+`l'] - `l' if _fcast_period[_n+`l'] == 1
+		qui bys `id': replace _fcast_period = _fcast_period[_n+`l'] - `l' if _fcast_period[_n+`l'] == 1
 	}
 	
 	capture drop _`depvar'_fc
@@ -51,6 +52,9 @@ program define ar_fcast, eclass
 	qui replace `lagvar' = L`lag'._`depvar'_fc
 	
 	qui predict `depvar'_predict, xb
+	if "`correction'" != "" {
+		qui replace `depvar'_predict = `depvar'_predict + `correction'
+	}
 	qui replace _`depvar'_fc = `depvar'_predict if missing(_`depvar'_fc)
 	qui clonevar clone = `depvar'_predict
 	qui drop `depvar'_predict
@@ -64,6 +68,9 @@ program define ar_fcast, eclass
 		
 		qui replace `lagvar' = L`lag'._`depvar'_fc
 		qui predict `depvar'_predict, xb
+		if "`correction'" != "" {
+			qui replace `depvar'_predict = `depvar'_predict + `correction'
+		}
 		qui replace _`depvar'_fc = `1'_predict if missing(_`depvar'_fc)
 		qui count if `depvar'_predict != clone
 		qui local more = r(N)
@@ -87,7 +94,6 @@ program define ar_fcast, eclass
 	qui order _*, last 
 	
 	if "`rmse'"=="rmse" {
-		* do not subtract one
 		qui gen e = `depvar' - `depvar'_fc if !missing(`fcast_period')
 		qui gen e2 = e*e
 		
@@ -103,7 +109,6 @@ program define ar_fcast, eclass
 	}
 	
 end
-
 
 
 
