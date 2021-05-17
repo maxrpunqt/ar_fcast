@@ -1,3 +1,0 @@
-v 3
-d Max R., Frankfurt am Main, Germany
-p ar_fcast ar_fcast - Forecast with autoregressive dependent variable
