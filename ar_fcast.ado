@@ -1,77 +1,104 @@
-*! Version 1.2
+*! Version 1.3
 * Compute out-of-sample forecasts with auto-regressive dependent variable
 * for panel data
 * By Max R., maxrpunqt@gmail.com
-* 17 May 2021
+* 18 May 2021
 
 
 capture program drop ar_fcast
 program define ar_fcast, eclass
 	version 14.1
-	syntax varlist(min=3 max=3) , Lag(integer) [rmse] [COrrection(string)]
-	*syntax invest L1invest fcast_period, Lag(1)
-	di "`correction'"
-	*Check basic requirements
-	if (`lag'<=0 ) {
-			disp as red "lag should be set equal to one or greater"
-	}
-	_xt, trequired 
-	local id=r(ivar)
-	local time=r(tvar)
+	syntax varlist(min=2 numeric), Lags(numlist min =1 integer) FCast_period(string) [rmse] [COrrection(string)] 
 
-	marksample touse, novarlist
+	qui local depvar: word 1 of `varlist'
+	qui di "dep variable: `depvar'"
+	
+	qui local lagvars: list varlist- depvar
+	qui di "`lagvars'"
+	
+	qui local lagvars_N: word count `lagvars'
+	qui di "# lagged variables: `lagvars_N'"
+	
+	qui local lags_N = 0
+	forval lagnum = 1/`:word count `lags''{
+        qui di `lagnum'
+		qui local lags_N = `lags_N' + 1
+    }
+	
+	*Check basic requirements
+	if ("`lagvars_N'"!="`lags_N'" ) {
+			disp as red "Number of lagged depvars (`lagvars_N') does not equal the number of values (`lags_N') in the lags() option"
+			error 102
+	}
+	
+	qui _xt, trequired 
+	qui local id=r(ivar)
+	qui local time=r(tvar)
+	
+	qui marksample touse, novarlist
 
 	qui tab `id' if `touse', nofreq
-	local Ncross=r(r)
+	qui local Ncross=r(r)
 	if (`Ncross'<=1){
 	   disp as red "Error: The number of individuals should be greater than one!"
 	   error 2000
 	} 
-	*Define variables
-	qui local depvar `1'
-	qui local lagvar `2'
-	qui local fcast_period = subinstr("`3'", ",","",.)
-	qui di "`fcast_period'"
-	capture drop _fcast_period
+	
+	qui local lags_c : subinstr local lags " " ",", all
+	qui local max_lag = max(`lags_c')
+	qui di "`max_lag'"
+
+	*adjust for lags by including values prior to starting point of forecast
+	qui capture drop _fcast_period
 	qui gen _fcast_period = `fcast_period'
 	qui label variable _fcast_period "Forecast period, adjusted for number of lags"
-	
-	*adjust for lags by including values prior to starting point of forecast
-	foreach l of numlist 1/`lag' {
+	foreach l of numlist 1/`max_lag' {
 		qui bys `id': replace _fcast_period = _fcast_period[_n+`l'] - `l' if _fcast_period[_n+`l'] == 1
 	}
-	
-	capture drop _`depvar'_fc
+
+
+	qui capture drop _`depvar'_fc
 	qui bys `id': gen _`depvar'_fc = `depvar' if _fcast_period < 1
 	qui label variable _`depvar'_fc "Forecasted values, starting with actual observations in _fcast_period<1"
-	
-	*Run recursive prediction
-	di "Start recursive prediction."
-	qui clonevar `lagvar'_orig = `lagvar'
-	
-	qui replace `lagvar' = L`lag'._`depvar'_fc
-	
+
+	*loop through all lagged dependent variables
+	qui local i = 1
+	foreach lag of local lags {
+		qui local lagvar: word `i' of `lagvars'
+		qui clonevar `lagvar'_orig = `lagvar'
+		qui replace `lagvar' = L`lag'._`depvar'_fc
+		qui local i = `i' + 1
+	}
+
 	qui predict `depvar'_predict, xb
 	if "`correction'" != "" {
 		qui replace `depvar'_predict = `depvar'_predict + `correction'
 	}
 	qui replace _`depvar'_fc = `depvar'_predict if missing(_`depvar'_fc)
+	qui label variable _`depvar'_fc "Forecasted values, starting with actual observations in _fcast_period<1"
+
+	*Run recursive prediction
+	di "Start recursive prediction."
 	qui clonevar clone = `depvar'_predict
 	qui drop `depvar'_predict
 
-
+	
 	qui local more 1
 	qui local cnt 1
 	while `more' {
-		*run loop util all forecast periods are filled up with predictions
-		*di "Iteration step: `cnt'"
-		
-		qui replace `lagvar' = L`lag'._`depvar'_fc
+
+		di "Iteration step: `cnt'"
+		qui local i = 1
+		foreach lag of local lags {
+			qui local lagvar: word `i' of `lagvars'
+			qui replace `lagvar' = L`lag'._`depvar'_fc
+			qui local i = `i' + 1
+		}	
 		qui predict `depvar'_predict, xb
 		if "`correction'" != "" {
 			qui replace `depvar'_predict = `depvar'_predict + `correction'
 		}
-		qui replace _`depvar'_fc = `1'_predict if missing(_`depvar'_fc)
+		qui replace _`depvar'_fc = `depvar'_predict if missing(_`depvar'_fc)
 		qui count if `depvar'_predict != clone
 		qui local more = r(N)
 		qui drop clone
@@ -79,18 +106,22 @@ program define ar_fcast, eclass
 		qui drop `depvar'_predict
 		qui local cnt = `cnt' + 1
 	}
+	
 	di "End recursive prediction."
 	*prepare final results
+
 	qui drop clone
-	qui replace `lagvar'  = `lagvar'_orig
-	qui drop `lagvar'_orig
+	qui local i = 1
+	foreach lag of local lags {
+		qui local lagvar: word `i' of `lagvars'
+		qui replace `lagvar'  = `lagvar'_orig
+		qui drop `lagvar'_orig
+		qui local i = `i' + 1
+	}
 	*bro*
-	
-	capture drop `depvar'_fc
+	qui capture drop `depvar'_fc
 	qui gen `depvar'_fc = _`depvar'_fc
-	*replace `depvar'_fc = . if `fcast_period' != _fcast_period
 	qui replace `depvar'_fc = . if `fcast_period'==.
-	
 	qui order _*, last 
 	
 	if "`rmse'"=="rmse" {
@@ -107,9 +138,7 @@ program define ar_fcast, eclass
 		
 		qui drop e e2
 	}
-	
 end
-
 
 
 

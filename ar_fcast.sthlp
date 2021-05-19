@@ -4,28 +4,32 @@
 {phang}{bf: ar_fcast {hline 2} Forecast time series with autoregressive dependent variable}
 
 
-{marker syntax}{...}
-{title:Syntax}
+{marker syntax }{...}
+{title:Syntax for ar_fcast}
 
 {p 8 16 2}
-{opt ar_fcast} depvar L#depvar fcast_period , {cmdab:l:ag}(#) [{cmdab:rmse}]
+{opt ar_fcast} depvar L#depvar [L#depvarlist], {cmdab:l:ags}({helpb numlist}) {cmdab:fc:ast_period}({helpb varname}) [{cmdab:rmse} {cmdab:co:rrection}({helpb varname})]
 
 {synoptset 20 tabbed}{...}
 {synopthdr}
 {synoptline}
-{synopt :{opt lag(#)}}set the lag equal to integer #, which is equal to one or greater {p_end}
-{synopt :{opt rmse}}compute root mean squared error and R square for the non-missing {it: fcast_period} values {p_end}
+{synopt :{opt lags(numlist)}} set the lags equal to a {helpb numlist} of integers, which have to be equal to one or greater {p_end}
+{synopt :{opt fcast_period(varname)}} set the forecast period equal to a pre-defined variable, where the variable is defined as a running sequence of numbers for each panel id with the forecast starting with value 1  {p_end}
+
+{synopt :{opt rmse}}compute root mean squared error and R square for the period with non-missing {it: fcast_period} values {p_end}
+
+{synopt :{opt correction(varname)}} user-specified correction term that will be added to the predicted outcome value before next prediction iteration {p_end}
 
 {synoptline}
 {p 4 6 2}
-A panel variable and a time variable must be specified. Use {helpb xtset}. Estimation results must already be stored in memory. Use {helpb estimates query} to verify that the current estimates are stored .{p_end}
+A panel variable and a time variable must be specified. Use {helpb xtset}. Estimation results must already be stored in memory. ar_fcast calls the {it:postestimation predict, xb} command. Use {helpb estimates query} to verify that the current estimates are stored .{p_end}
 
 
 {marker description}{...}
 {title:Description}
 
 {pstd}
-{cmd: ar_fcast} predicts recursively the outcome variable {it:depvar}, using as independent variables: {it:L#depvar}, the lagged {it:depvar}, and other covariates from the initial estimation model. The prediction is performed for a user-specified forecast period {it:fcast_period}, which should be  a numerical sequence starting with 1. Please note that the initial regression should not be run with the lag operator but by creating a lagged variable with the following name structure: {it:L#depvar}.
+{cmd: ar_fcast} predicts recursively the outcome variable {it:depvar}, using as independent variables: at least one the lagged {it:depvar}, {it:L#depvar} (and optionally more {it:L#depvars}), and other covariates from the initial estimation model. The prediction is performed for a user-specified forecast period {it:fcast_period}, which should be  a numerical sequence starting with 1. Please note that the initial regression should not be run with the lag operator but by creating a lagged dependent variables with the following name structure: {it:L#depvar}.
 
 {synoptline}
 {p2colreset}{...}
@@ -89,7 +93,7 @@ A panel variable and a time variable must be specified. Use {helpb xtset}. Estim
 
 {p 4 12 6} The initial regression variables must have the same names as the input variables. {p_end}
 
-{p 4 12 6} E.g., for "{cmd:reg} {it:y L1y} x" -> "{cmd:ar_fcast} {it:y L1y} fcast_period , lag(1)" {p_end}
+{p 4 12 6} E.g., for "{cmd:reg} {it:y L1y} x" -> "{cmd:ar_fcast} {it:y L1y}, lags(1) fc(fcast_period)" {p_end}
 
 
 {title:Stored results}
@@ -106,6 +110,6 @@ A panel variable and a time variable must be specified. Use {helpb xtset}. Estim
 {title:Author}
 
 {phang}
-{cmd:Max R.}, Frankfurt am Main, Germany.{break}
- E-mail: {browse "mailto:kerrydu@sdu.edu.cn":maxrpunqt@gmail.com}. {break}
+{cmd:Max Riedel}, Frankfurt am Main, Germany.{break}
+ E-mail: {browse "mailto:max.ri3d3l@gmail.com":max.ri3d3l@gmail.com}. {break}
 
