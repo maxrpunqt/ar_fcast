@@ -1,8 +1,9 @@
 *! Version 1.3
 * Compute out-of-sample forecasts with auto-regressive dependent variable
 * for panel data
-* By Max R., maxrpunqt@gmail.com
-* 18 May 2021
+* By Max Riedel, max.ri3d3l@gmail.com
+* Frankfurt am Main, Germany
+* 19 May 2021
 
 
 capture program drop ar_fcast
@@ -43,10 +44,18 @@ program define ar_fcast, eclass
 	   disp as red "Error: The number of individuals should be greater than one!"
 	   error 2000
 	} 
-	
-	qui local lags_c : subinstr local lags " " ",", all
-	qui local max_lag = max(`lags_c')
-	qui di "`max_lag'"
+
+	*count number of lags and identify the largest lag
+	if (`lags_N' == 1) {
+		local max_lag = `lags'
+		di "`max_lag'"
+		}
+		
+	else if (`lags_N'>1) {
+			local lags_c : subinstr local lags " " ",", all
+			local max_lag = max(`lags_c')
+			di "`max_lag'"
+	}
 
 	*adjust for lags by including values prior to starting point of forecast
 	qui capture drop _fcast_period
@@ -146,7 +155,6 @@ end
 * Begin: readily executable example
 ********************************************************************************
 /*
-
 webuse invest2, clear
 xtset company time
 
@@ -155,9 +163,10 @@ gen L`lag'invest = L`lag'.invest
 qreg invest L`lag'invest market stock i.company if time<=10, quantile(0.5)
 bys company: gen fcast_period = _n-10 if _n>10
 
-ar_fcast invest L`lag'invest fcast_period, lag(`lag')
+*ar_fcast invest L`lag'invest fcast_period, lag(`lag')
 
- 
+ar_fcast invest L`lag'invest, lags(`lag') fc(fcast_period)
+
 // Manual calculation:
 
 qreg invest L`lag'invest market stock i.company if time<=10, quantile(0.5)

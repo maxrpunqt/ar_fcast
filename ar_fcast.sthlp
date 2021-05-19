@@ -50,11 +50,11 @@ A panel variable and a time variable must be specified. Use {helpb xtset}. Estim
 {pstd}Resursive prediction{p_end}
 
 {phang2}{cmd: }{p_end}
-{phang2}{cmd:. ar_fcast invest L1invest fcast_period, lag(1)}{p_end}
+{phang2}{cmd:. ar_fcast invest L1invest, lags(1) fc(fcast_period)}{p_end}
 {phang2}{cmd: }{p_end}
 {phang2}{cmd: }{p_end}
 
-{pstd}Same result with manual calculation{p_end}
+{pstd}Same results with manual calculation{p_end}
 
 {phang2}{cmd: }{p_end}
 {phang2}{cmd:. levelsof company, local(companies)}{p_end}
@@ -71,7 +71,7 @@ A panel variable and a time variable must be specified. Use {helpb xtset}. Estim
 {pstd}Computing the RMSE for the forecast period{p_end}
 
 {phang2}{cmd: }{p_end}
-{phang2}{cmd:. ar_fcast invest L1invest fcast_period, lag(1) rmse}{p_end}
+{phang2}{cmd:. ar_fcast invest L1invest, lags(1) fc(fcast_period) rmse}{p_end}
 {phang2}{cmd: }{p_end}
 
 {pstd}Same result with manual calculation{p_end}
@@ -85,6 +85,23 @@ A panel variable and a time variable must be specified. Use {helpb xtset}. Estim
 {phang2}{cmd:. qui summ e2 if !missing(fcast_period), meanonly}{p_end}
 {phang2}{cmd:. display "Forecast period's RMSE = " =sqrt(`r(mean)')}{p_end}
 
+
+{pstd}Adding an error correction{p_end}
+{phang2}{cmd:. bys company: gen correction = _n/100}{p_end}
+{phang2}{cmd:. ar_fcast invest L1invest, lags(1) fc(fcast_period) co(correction)}{p_end}
+
+{pstd}Manual error correction{p_end}
+{phang2}{cmd:. gen _invest_fc_man2 = invest if _fcast_period < 1}{p_end}
+{phang2}{cmd:. bys company: replace _invest_fc_man2 = _invest_fc_man2[_n-1]*_b[L1invest] + market*_b[market] + stock*_b[stock] + company_fe + _b[_cons] + correction if _fcast_period >=1}{p_end}
+
+
+{pstd}Inclusion of multiple lagged dependent variables {p_end}
+{phang2}{cmd:. gen L2invest = L2.invest}{p_end}
+{phang2}{cmd:. gen L5invest = L5.invest}{p_end}
+{phang2}{cmd:. qreg invest L2invest L5invest market stock i.company if time<=10, quantile(0.5)}{p_end}
+{phang2}{cmd:. ar_fcast invest L2invest L5invest, lags(2 5) fc(fcast_period)}{p_end}
+{phang2}{cmd:. gen _invest_fc_man2 = invest if _fcast_period < 1}{p_end}
+{phang2}{cmd:. bys company: replace _invest_fc_man = _invest_fc_man[_n-2]*_b[L2invest] + _invest_fc_man[_n-5]*_b[L5invest]+ market*_b[market] + stock*_b[stock] + company_fe + _b[_cons] if _fcast_period >=1}{p_end}
 
 
 {hline}
